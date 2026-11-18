@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.py[cod]
+model.joblib
+uploads/*
+!uploads/.gitkeep
+dataset/

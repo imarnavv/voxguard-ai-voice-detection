@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoxGuard — AI Voice Detector</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui'] },
+      colors: { ink: '#0b1020', panel: '#121a2e', mint: '#63e6be', violet: '#9b8cff' }
+    }}};
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family:'DM Sans',sans-serif; background:radial-gradient(ellipse at 15% 0%,#1d2850 0%,#0b1020 48%,#080c18 100%); }
+    h1,h2,h3,.brand { font-family:'Space Grotesk',sans-serif; }
+    .glass { background:rgba(18,26,46,.78); border:1px solid rgba(148,163,184,.15); backdrop-filter:blur(18px); }
+    .drop-active { border-color:#63e6be!important; background:rgba(99,230,190,.07)!important; }
+    .wave span { display:block; width:4px; border-radius:99px; background:linear-gradient(180deg,#9b8cff,#63e6be); animation:wave 850ms ease-in-out infinite; }
+    .wave span:nth-child(3n) { animation-delay:150ms } .wave span:nth-child(3n+1) { animation-delay:300ms }
+    @keyframes wave { 0%,100%{height:12px;opacity:.5} 50%{height:42px;opacity:1} }
+    .spin { border:3px solid rgba(255,255,255,.15); border-top-color:#63e6be; animation:spin .8s linear infinite; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .meter { transition:width .7s ease; }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100">
+  <nav class="max-w-6xl mx-auto px-5 py-6 flex items-center justify-between">
+    <a class="brand flex items-center gap-3 text-xl font-bold tracking-tight" href="#">
+      <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-mint to-violet flex items-center justify-center text-ink">V</span>
+      VoxGuard<span class="text-mint">.</span>
+    </a>
+    <div class="hidden sm:flex items-center gap-2 text-xs text-slate-400 border border-slate-700/70 rounded-full px-4 py-2">
+      <span class="w-2 h-2 rounded-full {{ 'bg-mint' if model_ready else 'bg-amber-400' }}"></span>
+      {{ 'MODEL READY' if model_ready else 'MODEL NOT TRAINED' }}
+    </div>
+  </nav>
+
+  <main class="max-w-6xl mx-auto px-5 pb-16">
+    <section class="text-center pt-12 pb-10">
+      <div class="inline-flex items-center gap-2 rounded-full border border-violet-400/30 bg-violet-400/10 px-4 py-2 text-xs text-violet-200 mb-6">
+        <span>✦</span> AUDIO AUTHENTICITY ANALYSIS
+      </div>
+      <h1 class="text-4xl sm:text-6xl font-bold leading-tight tracking-tight">Is that voice <span class="bg-gradient-to-r from-mint to-violet bg-clip-text text-transparent">really human?</span></h1>
+      <p class="max-w-2xl mx-auto mt-5 text-slate-400 text-base sm:text-lg leading-relaxed">Analyse audio signals with machine learning to estimate whether a voice sounds human or AI-generated.</p>
+    </section>
+
+    <section class="grid lg:grid-cols-[1.15fr_.85fr] gap-6 items-start">
+      <div class="glass rounded-3xl p-5 sm:p-8 shadow-2xl shadow-black/20">
+        <div class="flex items-center justify-between mb-6">
+          <div><p class="text-sm text-slate-400">UPLOAD AUDIO</p><h2 class="text-2xl font-semibold mt-1">Start a voice scan</h2></div>
+          <div class="w-11 h-11 rounded-2xl bg-mint/10 text-mint flex items-center justify-center text-xl">♫</div>
+        </div>
+
+        <input id="fileInput" type="file" accept=".mp3,.wav,.flac,.ogg,.m4a,audio/*" class="hidden">
+        <div id="dropZone" role="button" tabindex="0" class="border-2 border-dashed border-slate-600/70 rounded-2xl px-5 py-12 text-center cursor-pointer transition hover:border-violet-300 hover:bg-violet-300/5">
+          <div class="w-16 h-16 rounded-2xl bg-slate-800 mx-auto flex items-center justify-center text-3xl mb-4">☁</div>
+          <p class="font-semibold text-lg">Drop your audio file here</p>
+          <p class="text-sm text-slate-400 mt-2">or <span class="text-mint underline underline-offset-4">browse files</span></p>
+          <p class="text-xs text-slate-500 mt-4">MP3, WAV, FLAC, OGG or M4A · up to 20 MB</p>
+        </div>
+
+        <div id="fileInfo" class="hidden mt-4 rounded-xl bg-slate-900/80 border border-slate-700 p-4 flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-violet/15 flex items-center justify-center">♫</div>
+          <div class="min-w-0 flex-1"><p id="fileName" class="font-medium truncate"></p><p id="fileSize" class="text-xs text-slate-400 mt-1"></p></div>
+          <button id="removeFile" class="text-slate-400 hover:text-white text-xl" aria-label="Remove file">×</button>
+        </div>
+
+        <button id="analyseBtn" disabled class="w-full mt-5 rounded-xl py-4 font-bold text-ink bg-gradient-to-r from-mint to-emerald-300 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-105 transition">
+          Analyse voice <span class="ml-2">→</span>
+        </button>
+
+        <div id="loading" class="hidden mt-7 text-center">
+          <div class="wave flex items-center justify-center gap-1 h-12 mb-3" aria-label="Analysing audio">
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <p class="font-semibold">Extracting audio fingerprints…</p>
+          <p class="text-xs text-slate-400 mt-1">Inspecting MFCCs and spectral patterns</p>
+        </div>
+        <p id="error" class="hidden mt-4 text-sm text-rose-300"></p>
+      </div>
+
+      <aside class="space-y-5">
+        <div class="glass rounded-3xl p-6">
+          <p class="text-xs tracking-widest text-slate-400">HOW IT WORKS</p>
+          <div class="mt-5 space-y-5">
+            <div class="flex gap-4"><span class="w-9 h-9 shrink-0 rounded-xl bg-violet/15 text-violet-200 flex items-center justify-center">01</span><div><h3 class="font-semibold">Audio upload</h3><p class="text-sm text-slate-400 mt-1">Your clip is decoded and converted to a standard sample rate.</p></div></div>
+            <div class="flex gap-4"><span class="w-9 h-9 shrink-0 rounded-xl bg-violet/15 text-violet-200 flex items-center justify-center">02</span><div><h3 class="font-semibold">Feature extraction</h3><p class="text-sm text-slate-400 mt-1">MFCC, spectral, energy and chroma features describe the signal.</p></div></div>
+            <div class="flex gap-4"><span class="w-9 h-9 shrink-0 rounded-xl bg-violet/15 text-violet-200 flex items-center justify-center">03</span><div><h3 class="font-semibold">ML prediction</h3><p class="text-sm text-slate-400 mt-1">The trained ensemble returns class probabilities.</p></div></div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section id="results" class="hidden glass rounded-3xl p-6 sm:p-8 mt-7">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div><p class="text-xs tracking-widest text-slate-400">ANALYSIS REPORT</p><h2 class="text-2xl font-semibold mt-1">Detection result</h2><p id="resultFile" class="text-sm text-slate-400 mt-1"></p></div>
+        <span id="resultBadge" class="rounded-full px-4 py-2 text-sm font-bold"></span>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6 mt-8">
+        <div class="rounded-2xl bg-slate-900/70 p-5">
+          <p class="text-sm text-slate-400">MODEL CLASSIFICATION</p><p id="prediction" class="text-3xl font-bold mt-2"></p><p class="text-sm text-slate-400 mt-2">Confidence <strong id="confidence" class="text-white"></strong></p>
+        </div>
+        <div class="rounded-2xl bg-slate-900/70 p-5">
+          <p class="text-sm text-slate-400 mb-4">CLASS PROBABILITIES</p>
+          <div class="flex justify-between text-sm mb-2"><span>Human / Real</span><strong id="humanValue"></strong></div>
+          <div class="h-2 rounded-full bg-slate-700 overflow-hidden"><div id="humanBar" class="meter h-full rounded-full bg-mint" style="width:0%"></div></div>
+          <div class="flex justify-between text-sm mt-5 mb-2"><span>AI-Generated</span><strong id="aiValue"></strong></div>
+          <div class="h-2 rounded-full bg-slate-700 overflow-hidden"><div id="aiBar" class="meter h-full rounded-full bg-violet" style="width:0%"></div></div>
+        </div>
+      </div>
+      <p id="disclaimer" class="text-xs text-slate-500 mt-6"></p>
+    </section>
+    <footer class="text-center text-xs text-slate-600 mt-12">VOXGUARD · COLLEGE PROJECT · AUDIO ML DEMO</footer>
+  </main>
+
+<script>
+  const input = document.getElementById('fileInput');
+  const zone = document.getElementById('dropZone');
+  const button = document.getElementById('analyseBtn');
+  const info = document.getElementById('fileInfo');
+  const errorBox = document.getElementById('error');
+  let selectedFile = null;
+
+  function showFile(file) {
+    errorBox.classList.add('hidden');
+    const allowed = /\.(mp3|wav|flac|ogg|m4a)$/i.test(file.name);
+    if (!allowed) { showError('Please choose an MP3, WAV, FLAC, OGG or M4A file.'); return; }
+    if (file.size > 20 * 1024 * 1024) { showError('The file exceeds the 20 MB limit.'); return; }
+    selectedFile = file;
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+    info.classList.remove('hidden');
+    button.disabled = false;
+    document.getElementById('results').classList.add('hidden');
+  }
+  function showError(message) { errorBox.textContent = message; errorBox.classList.remove('hidden'); }
+  zone.addEventListener('click', () => input.click());
+  zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
+  input.addEventListener('change', e => { if (e.target.files[0]) showFile(e.target.files[0]); });
+  ['dragenter','dragover'].forEach(name => zone.addEventListener(name, e => { e.preventDefault(); zone.classList.add('drop-active'); }));
+  ['dragleave','drop'].forEach(name => zone.addEventListener(name, e => { e.preventDefault(); zone.classList.remove('drop-active'); }));
+  zone.addEventListener('drop', e => { if (e.dataTransfer.files[0]) showFile(e.dataTransfer.files[0]); });
+  document.getElementById('removeFile').addEventListener('click', () => {
+    selectedFile = null; input.value = ''; info.classList.add('hidden'); button.disabled = true;
+  });
+
+  button.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    button.disabled = true; errorBox.classList.add('hidden');
+    document.getElementById('loading').classList.remove('hidden');
+    document.getElementById('results').classList.add('hidden');
+    const data = new FormData(); data.append('audio', selectedFile);
+    try {
+      const response = await fetch('/api/predict', { method: 'POST', body: data });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Analysis failed.');
+      document.getElementById('prediction').textContent = result.prediction;
+      document.getElementById('confidence').textContent = result.confidence + '%';
+      document.getElementById('resultFile').textContent = result.filename;
+      document.getElementById('humanValue').textContent = result.probabilities.human + '%';
+      document.getElementById('aiValue').textContent = result.probabilities.ai_generated + '%';
+      document.getElementById('humanBar').style.width = result.probabilities.human + '%';
+      document.getElementById('aiBar').style.width = result.probabilities.ai_generated + '%';
+      document.getElementById('disclaimer').textContent = result.disclaimer;
+      const badge = document.getElementById('resultBadge');
+      const isAI = result.class === 'ai_generated';
+      badge.textContent = isAI ? 'AI-GENERATED' : 'HUMAN';
+      badge.className = 'rounded-full px-4 py-2 text-sm font-bold ' + (isAI ? 'bg-violet/15 text-violet-200' : 'bg-mint/15 text-mint');
+      document.getElementById('results').classList.remove('hidden');
+      document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (err) { showError(err.message); }
+    finally { document.getElementById('loading').classList.add('hidden'); button.disabled = !selectedFile; }
+  });
+</script>
+</body>
+</html>
