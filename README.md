@@ -130,11 +130,3 @@ Example response:
 **Very low accuracy** — check labels, remove duplicates, balance classes, add more diverse samples, and evaluate on speakers/generators not seen during training. Do not tune only against the test set.
 
 **Upload rejected** — only supported audio extensions are accepted; maximum upload size is 20 MB.
-
-## 8. Suggested college demonstration
-
-1. Show the dataset class folders and explain the labels.
-2. Run `train.py` and show the printed metrics/confusion matrix.
-3. Start Flask and open the dashboard.
-4. Test one genuine recording and one generated recording.
-5. Explain the feature pipeline and why the result is an estimate rather than definitive proof.
